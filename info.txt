@@ -1,0 +1,4 @@
+g++ -g main.cpp -o main.exe
+./main.exe
+f5
+SetConsoleOutputCP(CP_UTF8);

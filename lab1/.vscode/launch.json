@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "C++ Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "C:/OSISP//lab1/main.exe",  // путь к исполняемому файлу
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "C:/OSISP",  // рабочая директория
+            "environment": [],
+            "externalConsole": false,   // если нужно окно консоли, поставь true
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",  // связка с задачей сборки
+            "miDebuggerPath": "gdb",   // путь к gdb для отладки
+            "logging": {
+                "trace": true,
+                "traceResponse": true,
+                "engineLogging": true
+            }
+        }
+    ]
+}
