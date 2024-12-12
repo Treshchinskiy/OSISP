@@ -1,16 +1,11 @@
 #include <windows.h>
 #include <iostream>
-#define PIPE_NAME_GEN_TO_SORT L"\\\\.\\pipe\\GenToSortPipe"
-#define PIPE_NAME_SORT_TO_OUTPUT L"\\\\.\\pipe\\SortToOutputPipe"
-#define BUFFER_SIZE 1024
+#include <vector>
+#define MAX_BUFFER 1024
 
-int main() {
-    HANDLE hPipe;
-    DWORD dwRead;
-    int buffer[BUFFER_SIZE];
-
-    hPipe = CreateFileW( 
-        PIPE_NAME_SORT_TO_OUTPUT,
+void connectToOutputPipe(HANDLE& pipeHandle) {
+    pipeHandle = CreateFileW(
+        L"\\\\.\\pipe\\SortToOutputPipe",
         GENERIC_READ,
         0,
         NULL,
@@ -19,36 +14,43 @@ int main() {
         NULL
     );
 
-    if (hPipe == INVALID_HANDLE_VALUE) {
-        std::cerr << "Failed to connect to the sorter pipe." << std::endl;
-        return 1;
+    if (pipeHandle == INVALID_HANDLE_VALUE) {
+        std::cerr << "Ошибка: невозможно подключиться к выходному каналу." << std::endl;
+        exit(1);
+    }
+}
+
+void DisplayStartMessage() {
+    std::cout << "Execution has commenced." << std::endl;
+}
+
+void DisplayEndMessage() {
+    std::cout << "Execution has completed." << std::endl;
+}
+
+void processReceivedData(HANDLE pipeHandle) {
+    int buffer[MAX_BUFFER];
+    DWORD bytesRead;
+
+    if (!ReadFile(pipeHandle, buffer, sizeof(buffer), &bytesRead, NULL)) {
+        std::cerr << "Ошибка при чтении данных из выходного канала." << std::endl;
+        return;
     }
 
-    std::cout << "Receiving sorted data..." << std::endl;
-
-    BOOL isSuccess = ReadFile(
-        hPipe,
-        buffer,
-        BUFFER_SIZE,
-        &dwRead,
-        NULL
-    );
-
-    if (!isSuccess || dwRead == 0) {
-        std::cerr << "Failed to read data from the pipe." << std::endl;
-        CloseHandle(hPipe);
-        return 1;
-    }
-
-    int dataSize = dwRead / sizeof(int);
-
-    std::cout << "Sorted data received. Outputting..." << std::endl;
-
-    for (int i = 0; i < dataSize; ++i) {
+    int numResults = bytesRead / sizeof(int);
+    std::cout << "Сортированные данные: ";
+    for (int i = 0; i < numResults; ++i) {
         std::cout << buffer[i] << " ";
     }
     std::cout << std::endl;
+}
 
+int main() {
+    DisplayStartMessage();
+    HANDLE hPipe;
+    connectToOutputPipe(hPipe);
+    processReceivedData(hPipe);
     CloseHandle(hPipe);
+    DisplayEndMessage()
     return 0;
 }

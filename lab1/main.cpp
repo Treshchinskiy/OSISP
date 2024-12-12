@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <ctime>
+#include <string>
 
 struct ThreadData {
     int* array;
@@ -13,20 +14,34 @@ struct ThreadData {
     LARGE_INTEGER endTime;
 };
 
+void startFunction() {
+    std::cout << "starting" << std::endl;
+}
+
+void endFunction() {
+    std::cout << "end" << std::endl;
+}
+
+
 DWORD WINAPI SortArrayPart(LPVOID param) {
     ThreadData* data = (ThreadData*)param;
-    
+
     QueryPerformanceCounter(&data->startTime);  
-    
-    std::sort(data->array + data->start, data->array + data->end);  
-    
-    QueryPerformanceCounter(&data->endTime); 
+
+    std::sort(data->array + data->start, data->array + data->end);
+
+    QueryPerformanceCounter(&data->endTime);  // финальное время
     data->isDone = true;
+
     
+    std::string sortStatus = "Sorting completed for a segment.";
+    std::cout << sortStatus << std::endl;
+
     return 0;
 }
 
 void MergeSortedParts(int* array, int size, int numThreads) {
+    std::string info = "сортировка разных часте массива и их слияние";
     std::vector<int> mergedArray;
     for (int i = 0; i < numThreads; ++i) {
         int start = (size / numThreads) * i;
@@ -35,15 +50,20 @@ void MergeSortedParts(int* array, int size, int numThreads) {
     }
     std::sort(mergedArray.begin(), mergedArray.end());
     std::copy(mergedArray.begin(), mergedArray.end(), array);
+
+    std::string mergeStatus = "Merging sorted parts completed.";
+    std::cout << mergeStatus << std::endl;
 }
 
 void ShowProgress(ThreadData* threadData, int numThreads) {
     while (true) {
+        std::string prog= "Progress";
+        std::cout << "----------------------------" << std::endl;
+        std::cout << prog << std::endl;
         bool allDone = true;
         for (int i = 0; i < numThreads; ++i) {
-            std::cout << "Fragment " << i + 1 << ": " 
-                      << (threadData[i].isDone ? "Done" : "Not done") 
-                      << std::endl;
+            std::string progressStatus = threadData[i].isDone ? "Done" : "Not done";
+            std::cout << "Fragment " << i + 1 << ": " << progressStatus << std::endl;
             if (!threadData[i].isDone) {
                 allDone = false;
             }
@@ -51,7 +71,7 @@ void ShowProgress(ThreadData* threadData, int numThreads) {
         if (allDone) {
             break;
         }
-        Sleep(500);
+        Sleep(500); // ждем определенное время чтобы снова проверить свободно или нет
         std::cout << "----------------------------" << std::endl;
     }
 }
@@ -60,10 +80,10 @@ void ShowThreadTimes(ThreadData* threadData, int numThreads, LARGE_INTEGER frequ
     std::cout << "Thread execution times (in milliseconds):" << std::endl;
     for (int i = 0; i < numThreads; ++i) {
         double executionTime = (double)(threadData[i].endTime.QuadPart - threadData[i].startTime.QuadPart) * 1000.0 / frequency.QuadPart;
-        std::cout << "Thread " << i + 1 << ": " << executionTime << " ms" << std::endl;
+        std::string timeMessage = "Thread " + std::to_string(i + 1) + ": " + std::to_string(executionTime) + " ms";
+        std::cout << timeMessage << std::endl;
     }
 }
-
 
 void GetCpuTimes(FILETIME& idleTime, FILETIME& kernelTime, FILETIME& userTime) {
     GetSystemTimes(&idleTime, &kernelTime, &userTime);
@@ -79,7 +99,7 @@ double CalculateCpuUsage(const FILETIME& idleStart, const FILETIME& idleEnd, con
     ULONGLONG userDiff = FileTimeToInt64(userEnd) - FileTimeToInt64(userStart);
 
     ULONGLONG totalSystem = kernelDiff + userDiff;
-    
+
     if (totalSystem == 0) {
         return 0.0;
     }
@@ -88,30 +108,37 @@ double CalculateCpuUsage(const FILETIME& idleStart, const FILETIME& idleEnd, con
 }
 
 int main() {
+    startFunction();  
+    std::string start = ".\\main.exe to start the programm";
+
     int arraySize, numThreads;
     LARGE_INTEGER frequency;
-    
-    QueryPerformanceFrequency(&frequency);  
 
-    std::cout << "enter array size: ";
+    QueryPerformanceFrequency(&frequency);  // получаем частоту
+
+    std::string arraySizePrompt = "Enter array size: ";
+    std::cout << arraySizePrompt;
     std::cin >> arraySize;
-    
-    std::cout << "Enter number of threads: ";
+
+    std::string threadCountPrompt = "Enter number of threads: ";
+    std::cout << threadCountPrompt;
     std::cin >> numThreads;
-    
+
     if (numThreads <= 0 || arraySize <= 0 || numThreads > arraySize) {
-        std::cerr << "Invalid parameters!" << std::endl;
+        std::string errorMessage = "Invalid parameters!";
+        std::cerr << errorMessage << std::endl;
         return 1;
     }
 
     std::vector<int> array(arraySize);
     srand((unsigned)time(0));
-    
+
     for (int i = 0; i < arraySize; ++i) {
         array[i] = rand() % 100;
     }
-    
-    std::cout << "Initial array: ";
+
+    std::string initialArrayMessage = "Initial array: ";
+    std::cout << initialArrayMessage;
     for (int i = 0; i < arraySize; ++i) {
         std::cout << array[i] << " ";
     }
@@ -119,52 +146,57 @@ int main() {
 
     std::vector<HANDLE> threads(numThreads);
     std::vector<ThreadData> threadData(numThreads);
-    
+
     int chunkSize = arraySize / numThreads;
-    
+
     FILETIME idleStart, kernelStart, userStart;
     FILETIME idleEnd, kernelEnd, userEnd;
 
-    GetCpuTimes(idleStart, kernelStart, userStart);  
+    GetCpuTimes(idleStart, kernelStart, userStart);  // получаем время
 
     for (int i = 0; i < numThreads; ++i) {
         threadData[i].array = array.data();
         threadData[i].start = i * chunkSize;
         threadData[i].end = (i == numThreads - 1) ? arraySize : threadData[i].start + chunkSize;
         threadData[i].isDone = false;
-        
+
         threads[i] = CreateThread(
-            NULL, //локатор безопасности 
-            0, //стек
-            SortArrayPart, //указатель на функцию
-            &threadData[i], //аргумент который мы передаем в функцию
-            0, //флаг создания потока
-            NULL //идентификатор потока
+            NULL, // Security attributes
+            0,    // Stack size
+            SortArrayPart, // Thread function
+            &threadData[i], // Parameter to pass
+            0,    // Creation flags
+            NULL  // Thread ID
         );
     }
 
     ShowProgress(threadData.data(), numThreads);
-    
+
     WaitForMultipleObjects(numThreads, threads.data(), TRUE, INFINITE);
-    
+
     for (HANDLE thread : threads) {
         CloseHandle(thread);
     }
 
     MergeSortedParts(array.data(), arraySize, numThreads);
 
-    std::cout << "Sorted array: ";
+    std::string sortedArrayMessage = "Sorted array: ";
+    std::cout << sortedArrayMessage;
     for (int i = 0; i < arraySize; ++i) {
         std::cout << array[i] << " ";
     }
     std::cout << std::endl;
 
-    ShowThreadTimes(threadData.data(), numThreads, frequency); 
+    ShowThreadTimes(threadData.data(), numThreads, frequency);  // выводим стату
 
-    GetCpuTimes(idleEnd, kernelEnd, userEnd);  
+    GetCpuTimes(idleEnd, kernelEnd, userEnd);  // получение итога
 
-    double cpuUsage = CalculateCpuUsage(idleStart, idleEnd, kernelStart, kernelEnd, userStart, userEnd);  
-    std::cout << "CPU usage during thread execution: " << cpuUsage << "%" << std::endl;
+    double cpuUsage = CalculateCpuUsage(idleStart, idleEnd, kernelStart, kernelEnd, userStart, userEnd);  //считаем производительность
+
+    std::string cpuUsageMessage = "CPU usage during thread execution: ";
+    std::cout << cpuUsageMessage << cpuUsage << "%" << std::endl;
+    endFunction();
+
 
     return 0;
 }

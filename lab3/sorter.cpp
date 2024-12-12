@@ -1,18 +1,11 @@
 #include <windows.h>
 #include <iostream>
+#include <vector>
 #include <algorithm>
-#define PIPE_NAME_GEN_TO_SORT L"\\\\.\\pipe\\GenToSortPipe"
-#define PIPE_NAME_SORT_TO_OUTPUT L"\\\\.\\pipe\\SortToOutputPipe"
-#define BUFFER_SIZE 1024
 
-int main() {
-    HANDLE hPipeRead, hPipeWrite;
-    DWORD dwRead, dwWritten;
-    int buffer[BUFFER_SIZE];
-    int dataSize;
-
-    hPipeRead = CreateFileW( 
-        PIPE_NAME_GEN_TO_SORT,
+void connectToGeneratorPipe(HANDLE& pipeHandle) {
+    pipeHandle = CreateFileW(
+        L"\\\\.\\pipe\\GenToSortPipe",
         GENERIC_READ,
         0,
         NULL,
@@ -21,77 +14,73 @@ int main() {
         NULL
     );
 
-    if (hPipeRead == INVALID_HANDLE_VALUE) {
-        std::cerr << "Failed to connect to the data generator pipe." << std::endl;
-        return 1;
+    if (pipeHandle == INVALID_HANDLE_VALUE) {
+        std::cerr << "Ошибка: невозможно подключиться к генератору данных." << std::endl;
+        exit(1);
     }
+}
 
-    std::cout << "Receiving data from the generator..." << std::endl;
+void sortReceivedData(int* buffer, int numElements) {
+    std::sort(buffer, buffer + numElements);
+}
 
-    BOOL isSuccess = ReadFile(
-        hPipeRead,
-        buffer,
-        BUFFER_SIZE,
-        &dwRead,
-        NULL
-    );
-
-    if (!isSuccess || dwRead == 0) {
-        std::cerr << "Failed to read data from the pipe." << std::endl;
-        CloseHandle(hPipeRead);
-        return 1;
-    }
-
-    dataSize = dwRead / sizeof(int);
-
-    std::cout << "Data received. Sorting..." << std::endl;
-
-    std::sort(buffer, buffer + dataSize);
-
-    CloseHandle(hPipeRead);
-
-    hPipeWrite = CreateNamedPipeW( 
-        PIPE_NAME_SORT_TO_OUTPUT,
+HANDLE createOutputPipe() {
+    HANDLE hPipeWrite = CreateNamedPipeW(
+        L"\\\\.\\pipe\\SortToOutputPipe",
         PIPE_ACCESS_OUTBOUND,
         PIPE_TYPE_BYTE | PIPE_WAIT,
         1,
-        BUFFER_SIZE,
-        BUFFER_SIZE,
+        1024,
+        1024,
         0,
         NULL
     );
 
     if (hPipeWrite == INVALID_HANDLE_VALUE) {
-        std::cerr << "Failed to create pipe to the output process." << std::endl;
+        std::cerr << "Ошибка при создании канала для отправки данных." << std::endl;
+        exit(1);
+    }
+
+    if (!ConnectNamedPipe(hPipeWrite, NULL)) {
+        std::cerr << "Ошибка при подключении к выходному каналу." << std::endl;
+        exit(1);
+    }
+
+    return hPipeWrite;
+}
+void DisplayStartMessage() {
+    std::cout << "Execution has commenced." << std::endl;
+}
+
+void DisplayEndMessage() {
+    std::cout << "Execution has completed." << std::endl;
+}
+
+int main() {
+    DisplayStartMessage();
+    HANDLE hPipeRead, hPipeWrite;
+    int buffer[1024];
+    DWORD dwRead;
+
+    connectToGeneratorPipe(hPipeRead);
+    std::cout << "Данные получены, начинаем сортировку..." << std::endl;
+
+    if (!ReadFile(hPipeRead, buffer, sizeof(buffer), &dwRead, NULL)) {
+        std::cerr << "Ошибка при чтении данных из канала." << std::endl;
         return 1;
     }
 
-    std::cout << "Waiting for the output process to connect..." << std::endl;
+    int numElements = dwRead / sizeof(int);
+    sortReceivedData(buffer, numElements);
 
-    BOOL isConnected = ConnectNamedPipe(hPipeWrite, NULL);
-    if (!isConnected) {
-        std::cerr << "Failed to connect to the output process." << std::endl;
-        CloseHandle(hPipeWrite);
-        return 1;
-    }
+    hPipeWrite = createOutputPipe();
 
-    std::cout << "Sending sorted data to the output process..." << std::endl;
+    WriteFile(hPipeWrite, buffer, numElements * sizeof(int), &dwRead, NULL);
 
-    isSuccess = WriteFile(
-        hPipeWrite,
-        buffer,
-        dataSize * sizeof(int),
-        &dwWritten,
-        NULL
-    );
+    std::cout << "Сортированные данные отправлены." << std::endl;
 
-    if (!isSuccess) {
-        std::cerr << "Failed to write data to the pipe." << std::endl;
-    }
-    else {
-        std::cout << "Sorted data sent successfully." << std::endl;
-    }
-
+    CloseHandle(hPipeRead);
     CloseHandle(hPipeWrite);
+    DisplayEndMessage();
     return 0;
 }
